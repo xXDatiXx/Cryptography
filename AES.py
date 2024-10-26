@@ -24,6 +24,24 @@ S_BOX = [
     [0x8C, 0xA1, 0x89, 0x0D, 0xBF, 0xE6, 0x42, 0x68, 0x41, 0x99, 0x2D, 0x0F, 0xB0, 0x54, 0xBB, 0x16]
 ]
 
+# Convertir el ciphertext a hexadecimal
+def bytes_to_hex(ciphertext):
+    return ''.join(format(byte, '02x') for byte in ciphertext)
+
+# Función para convertir texto a bytes y rellenar si es necesario
+def text_to_bytes(text):
+    text_bytes = [ord(char) for char in text]
+    while len(text_bytes) < 16:
+        text_bytes.append(0x00)  # Rellenar con ceros si es necesario
+    return text_bytes[:16]  # Asegurarse de que tenga exactamente 16 bytes
+
+# Función para ingresar la llave
+def key_to_bytes(key_input):
+    key_bytes = [ord(char) for char in key_input]
+    while len(key_bytes) < 16:
+        key_bytes.append(0x00)  # Rellenar con ceros si es necesario
+    return key_bytes[:16]  # Asegurarse de que tenga exactamente 16 bytes
+
 # Matriz para MixColumns
 """
 Se usa en el paso MixColumns para mezclar las columnas del estado. 
@@ -107,11 +125,6 @@ Hace una operación de XOR bit a bit entre el estado actual y una subclave (roun
 def add_round_key(state, round_key):
     return np.bitwise_xor(state, round_key)
 
-# Expansión de llaves
-"""
-realiza la expansión de llaves en AES, generando un conjunto de subclaves (round keys) a partir de la 
-clave original. Estas subclaves se usan en cada ronda del cifrado.
-"""
 def key_expansion(key):
     expanded_key = np.zeros((44, 4), dtype=np.uint8)
     expanded_key[0:4] = np.array(key).reshape(4, 4)
@@ -126,6 +139,34 @@ def key_expansion(key):
     
     return expanded_key
 
+# Función para dividir el texto en bloques de 16 bytes
+"""
+convierte un texto en una lista de valores ASCII, divide esta lista en bloques 
+de un tamaño especificado (por defecto, 16 bytes) y rellena con ceros los 
+bloques que sean menores que el tamaño especificado. Luego, devuelve una lista de estos bloques.
+"""
+def divide_into_blocks(text, block_size=16):
+    text_bytes = [ord(char) for char in text]
+    blocks = []
+    for i in range(0, len(text_bytes), block_size):
+        block = text_bytes[i:i+block_size]
+        while len(block) < block_size:
+            block.append(0x00)  # Rellenar con ceros si el bloque es menor de 16 bytes
+        blocks.append(block)
+    return blocks
+
+# Modificar la función principal para aceptar bloques
+"""
+ivide el texto plano en bloques, cifra cada bloque individualmente usando AES 
+y devuelve una lista de todos los bloques cifrados.
+"""
+def aes_encrypt_blocks(plaintext, key):
+    ciphertext_blocks = []
+    blocks = divide_into_blocks(plaintext)
+    for block in blocks:
+        ciphertext = aes_encrypt(block, key)
+        ciphertext_blocks.extend(ciphertext)
+    return ciphertext_blocks
 
 # Función principal AES-128
 """
@@ -150,36 +191,16 @@ def aes_encrypt(plaintext, key):
     
     return state.flatten().tolist()
 
-# Convertir el ciphertext a hexadecimal
-def bytes_to_hex(ciphertext):
-    return ''.join(format(byte, '02x') for byte in ciphertext)
-
-# Función para convertir texto a bytes y rellenar si es necesario
-def text_to_bytes(text):
-    text_bytes = [ord(char) for char in text]
-    while len(text_bytes) < 16:
-        text_bytes.append(0x00)  # Rellenar con ceros si es necesario
-    return text_bytes[:16]  # Asegurarse de que tenga exactamente 16 bytes
-
-# Función para ingresar la llave
-def key_to_bytes(key_input):
-    key_bytes = [ord(char) for char in key_input]
-    while len(key_bytes) < 16:
-        key_bytes.append(0x00)  # Rellenar con ceros si es necesario
-    return key_bytes[:16]  # Asegurarse de que tenga exactamente 16 bytes
-
-
 def main():
     # Solicitar la clave
     key_input = input("Introduce la clave de cifrado (16 caracteres): ")
     key = key_to_bytes(key_input)
 
-    # Solicitar el texto a cifrar
+    # Texto a cifrar
     plaintext_input = input("Introduce el texto a cifrar (máximo 16 caracteres): ")
-    plaintext = text_to_bytes(plaintext_input)
 
-    # Cifrar el texto llamando la función principal
-    ciphertext = aes_encrypt(plaintext, key)
+    # Cifrar el texto en bloques
+    ciphertext = aes_encrypt_blocks(plaintext_input, key)
 
     # Convertir y mostrar el resultado en hexadecimal
     ciphertext_hex = bytes_to_hex(ciphertext)
